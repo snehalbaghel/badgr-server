@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+shopt -s dotglob
+
+
+mv /tmp/src/* ./
+echo $(ls -a)
+echo 'alsdkm'
+echo $(ls /tmp/src/ -a)
+mv ./.docker/etc/uwsgi.ini ./
+
+mv ./.docker/etc/wsgi.py ./
+
+if [[ ! -z "$UPGRADE_PIP_TO_LATEST" ]]; then
+  echo "---> Upgrading pip to latest version ..."
+  pip install -U pip setuptools wheel
+fi
+
+SETTINGS_FILE_PATH=${APP_HOME:-.docker/etc/settings_local.dev.py}
+echo "---> Copying settings from $SETTINGS_FILE_PATH"
+cp $SETTINGS_FILE_PATH ./apps/mainsite
+
+
+pip install uwsgi
+pip install -r requirements.txt
+
+python manage.py migrate
+python manage.py dist
+python manage.py collectstatic
