@@ -4,14 +4,14 @@ set -e
 shopt -s dotglob
 
 
-mv /tmp/src/* ./
+mv /tmp/src/* ./badgr
 echo $(ls -a)
 echo 'alsdkm'
 echo $(ls /tmp/src/ -a)
-mv ./.docker/etc/uwsgi.ini ./
+mv ./.docker/etc/uwsgi.ini ./badgr
 
-mv ./.docker/etc/wsgi.py ./
-
+mv ./.docker/etc/wsgi.py ./badgr
+ 
 if [[ ! -z "$UPGRADE_PIP_TO_LATEST" ]]; then
   echo "---> Upgrading pip to latest version ..."
   pip install -U pip setuptools wheel
@@ -19,12 +19,12 @@ fi
 
 SETTINGS_FILE_PATH=${APP_HOME:-.docker/etc/settings_local.dev.py}
 echo "---> Copying settings from $SETTINGS_FILE_PATH"
-cp $SETTINGS_FILE_PATH ./apps/mainsite
+cp $SETTINGS_FILE_PATH ./badgr/apps/mainsite
 
 
 pip install uwsgi
 pip install -r requirements.txt
 
-python manage.py migrate
-python manage.py dist
-python manage.py collectstatic
+python ./badgr/manage.py migrate
+python ./badgr/manage.py dist
+python ./badgr/manage.py collectstatic

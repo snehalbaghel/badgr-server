@@ -1,7 +1,7 @@
 FROM python:3.7-slim
 
 ARG USER=1001
-ARG APPDIR="./"
+ARG APPDIR="./badgr"
 
 RUN apt-get update && apt-get upgrade -y
 RUN apt-get install -y default-libmysqlclient-dev \
@@ -21,7 +21,7 @@ LABEL io.k8s.description="S2I builder for Badgr" \
 COPY ./.s2i/bin/ /usr/libexec/s2i
 RUN chmod 777 -R /usr/libexec/s2i
 
-RUN chown -R 1001:0 ${APP_ROOT}
+RUN chown -R 1001:0 ${APPDIR}
 
 EXPOSE 8080
 

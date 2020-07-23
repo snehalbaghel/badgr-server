@@ -2,4 +2,4 @@
 
 echo "sad"
 echo $(ls -a)
-python ./badgr_server/manage.py runserver 0.0.0.0:8080
+python ./badgr/manage.py runserver 0.0.0.0:8080
