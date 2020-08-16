@@ -495,3 +495,7 @@ AUTHCODE_EXPIRES_SECONDS = 600  # needs to be long enough to fetch information f
 SAML_EMAIL_KEYS = ['Email', 'mail', 'emailaddress', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress']
 SAML_FIRST_NAME_KEYS = ['FirstName', 'givenName', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname']
 SAML_LAST_NAME_KEYS = ['LastName', 'sn', 'surname', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname']
+
+# Allow to send path to an existing image in image fields
+# For eg file:///uploads/issuer/xyz.png will point to MEDIA_ROOT/uploads/issuer/xyz.png
+ALLOW_IMAGE_PATHS = False

@@ -4,11 +4,14 @@ import mimetypes
 import urllib.parse
 import uuid
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError, SuspiciousFileOperation
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import UploadedFile
 from django.utils.translation import ugettext as _
 from rest_framework.fields import FileField, SkipField
+from django.core.files.storage import default_storage
+from django.conf import settings
+from pathlib import Path
 
 from mainsite.validators import ValidImageValidator
 
@@ -50,12 +53,29 @@ class ValidImageField(Base64FileField):
                                               **kwargs)
 
     def to_internal_value(self, data):
-        # Skip http/https urls to avoid overwriting valid data when, for example, a client GETs and subsequently PUTs an
-        # entity containing an image URL.
-        if self.skip_http and not isinstance(data, UploadedFile) and urllib.parse.urlparse(data).scheme in ('http', 'https'):
-            raise SkipField()
+        if not isinstance(data, UploadedFile):
+            parsed_url = urllib.parse.urlparse(data)
+
+            # Skip http/https urls to avoid overwriting valid data when, for example, a client GETs and subsequently PUTs an
+            # entity containing an image URL.
+            if self.skip_http and parsed_url.scheme in ('http', 'https'):
+                raise SkipField()
+
+            if settings.ALLOW_IMAGE_PATHS and parsed_url.scheme == 'file':
+                path_to_existing_image = Path('.' + parsed_url.path)
+                
+                try:
+                    # default_storage checks inside media folder
+                    if not default_storage.exists(path_to_existing_image):
+                        raise ValidationError('File does not exist')
+                    
+                    absolute_path = Path(Path(settings.MEDIA_ROOT) / path_to_existing_image)
+                    
+                    with open(absolute_path , 'rb') as f:
+                        existing_image = ContentFile(f.read(), name=f.name)
+
+                    return existing_image
+                except (SuspiciousFileOperation, ValueError) as e:
+                    raise ValidationError('Path points to file outside media context')
 
         return super(ValidImageField, self).to_internal_value(data)
-
-
-
