@@ -62,19 +62,17 @@ class ValidImageField(Base64FileField):
                 raise SkipField()
 
             if settings.ALLOW_IMAGE_PATHS and parsed_url.scheme == 'file':
-                path_to_existing_image = Path('.' + parsed_url.path)
+                path_to_existing_image = Path(parsed_url.netloc + parsed_url.path)
                 
                 try:
-                    # default_storage checks inside media folder
                     if not default_storage.exists(path_to_existing_image):
                         raise ValidationError('File does not exist')
                     
-                    absolute_path = Path(Path(settings.MEDIA_ROOT) / path_to_existing_image)
-                    
-                    with open(absolute_path , 'rb') as f:
-                        existing_image = ContentFile(f.read(), name=f.name)
+                    with default_storage.open(path_to_existing_image , 'rb') as f:
+                        existing_image = ContentFile(f.read(), f.name)
 
                     return existing_image
+
                 except (SuspiciousFileOperation, ValueError) as e:
                     raise ValidationError('Path points to file outside media context')
 

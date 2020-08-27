@@ -15,6 +15,7 @@ from django.urls import resolve, Resolver404
 from issuer.utils import sanitize_id
 from mainsite.utils import fetch_remote_file_to_storage, list_of, OriginSetting
 from pathway.tasks import award_badges_for_pathway_completion
+from django.core.files.storage import get_storage_class
 
 
 def resolve_source_url_referencing_local_object(source_url):
@@ -362,3 +363,22 @@ class BadgeInstanceManager(BaseOpenBadgeObjectManager):
             notify_badgerank_of_badgeclass.delay(badgeclass_pk=badgeclass.pk)
 
         return new_instance
+
+
+class DontSaveIfFileExists(get_storage_class()):
+    def get_available_name(self, name, max_length=None):
+        if max_length and len(name) > max_length:
+            raise(Exception("name's length is greater than max_length"))
+
+        if settings.MEDIA_ROOT in name:
+            # file.name gives an absolute path so convert it to relative
+            name = os.path.relpath(name, settings.MEDIA_ROOT)
+
+        return name
+
+    def _save(self, name, content):
+        if settings.ALLOW_IMAGE_PATHS and self.exists(name):
+            # if the file exists, do not call the superclasses _save method
+            return name
+        # if the file is new, DO call it
+        return super(DontSaveIfFileExists, self)._save(name, content)
