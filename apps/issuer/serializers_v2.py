@@ -19,6 +19,7 @@ from mainsite.drf_fields import ValidImageField
 from mainsite.models import BadgrApp
 from mainsite.serializers import (CachedUrlHyperlinkedRelatedField, DateTimeWithUtcZAtEndField, StripTagsCharField, MarkdownCharField,
                                   HumanReadableBooleanField, OriginalJsonSerializerMixin)
+from mainsite.utils import image_exists
 from mainsite.validators import ChoicesValidator, TelephoneValidator, BadgeExtensionValidator, PositiveIntegerValidator
 
 
@@ -151,7 +152,7 @@ class IssuerSerializerV2(DetailSerializerV2, OriginalJsonSerializerMixin):
         })
 
     def validate_image(self, image):
-        if image is not None:
+        if image is not None and not image_exists(image):
             img_name, img_ext = os.path.splitext(image.name)
             image.name = 'issuer_logo_' + str(uuid.uuid4()) + img_ext
         return image

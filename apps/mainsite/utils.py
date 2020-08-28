@@ -6,7 +6,6 @@ Utility functions and constants that might be used across the project.
 import io
 import base64
 import datetime
-import functools
 import hashlib
 import json
 import re
@@ -355,14 +354,10 @@ def netloc_to_domain(netloc):
     domain = domain.split(':')[0]
     return domain
 
-def skip_existing_images(func):
-    @functools.wraps(func)
-    def skip(self, *args, **kwargs):
-        image_exists = False
 
-        if settings.ALLOW_IMAGE_PATHS and self.image and default_storage.exists(self.image.name):
-            image_exists = True
+def image_exists(image):
+    exists = False
+    if settings.ALLOW_IMAGE_PATHS and image and default_storage.exists(image.name):
+        exists = True
 
-        return func(self, image_exists, *args, **kwargs)
-
-    return skip
+    return exists

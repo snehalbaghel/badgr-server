@@ -497,5 +497,5 @@ SAML_FIRST_NAME_KEYS = ['FirstName', 'givenName', 'http://schemas.xmlsoap.org/ws
 SAML_LAST_NAME_KEYS = ['LastName', 'sn', 'surname', 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname']
 
 # Allow to send path to an existing image in image fields
-# For eg file:///uploads/issuer/xyz.png will point to MEDIA_ROOT/uploads/issuer/xyz.png
+# See README
 ALLOW_IMAGE_PATHS = False
