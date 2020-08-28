@@ -6,6 +6,7 @@ Utility functions and constants that might be used across the project.
 import io
 import base64
 import datetime
+import functools
 import hashlib
 import json
 import re
@@ -20,6 +21,7 @@ from django.apps import apps
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import SuspiciousFileOperation
+from django.core.files.storage import default_storage
 from django.core.files.storage import DefaultStorage
 from django.urls import get_callable
 from django.http import HttpResponse
@@ -352,3 +354,15 @@ def netloc_to_domain(netloc):
     # Port specified in URL
     domain = domain.split(':')[0]
     return domain
+
+def skip_existing_images(func):
+    @functools.wraps(func)
+    def skip(self, *args, **kwargs):
+        image_exists = False
+
+        if settings.ALLOW_IMAGE_PATHS and self.image and default_storage.exists(self.image.name):
+            image_exists = True
+
+        return func(self, image_exists, *args, **kwargs)
+
+    return skip

@@ -33,7 +33,7 @@ import badgrlog
 from entity.models import BaseVersionedEntity
 from issuer.managers import BadgeInstanceManager, IssuerManager, BadgeClassManager, BadgeInstanceEvidenceManager, DontSaveIfFileExists
 from mainsite.managers import SlugOrJsonIdCacheModelManager
-from mainsite.mixins import ResizeUploadedImage, ScrubUploadedSvgImage, SkipExistingFileScrubbing
+from mainsite.mixins import ResizeUploadedImage, ScrubUploadedSvgImage
 from mainsite.models import BadgrApp, EmailBlacklist
 from mainsite import blacklist
 from mainsite.utils import OriginSetting, generate_entity_uri
@@ -174,8 +174,7 @@ class BaseOpenBadgeExtension(cachemodel.CacheModel):
         abstract = True
 
 
-class Issuer(SkipExistingFileScrubbing,
-             ResizeUploadedImage,
+class Issuer(ResizeUploadedImage,
              ScrubUploadedSvgImage,
              BaseAuditedModel,
              BaseVersionedEntity,
@@ -448,8 +447,7 @@ def get_user_or_none(recipient_id, recipient_type):
     return user
 
 
-class BadgeClass(SkipExistingFileScrubbing,
-                 ResizeUploadedImage,
+class BadgeClass(ResizeUploadedImage,
                  ScrubUploadedSvgImage,
                  BaseAuditedModel,
                  BaseVersionedEntity,
