@@ -30,6 +30,7 @@ from mainsite.serializers import DateTimeWithUtcZAtEndField
 from mainsite.tests import SetupIssuerHelper
 from mainsite.tests.base import BadgrTestCase
 from mainsite.utils import fetch_remote_file_to_storage, verify_svg
+from mainsite.drf_fields import ValidImageField
 
 
 class TestDateSerialization(BadgrTestCase):
@@ -511,3 +512,40 @@ class TestRemoteFileToStorage(SetupIssuerHelper, BadgrTestCase):
 
         self.assertTrue(storage_name.endswith(expected_extension))
         self.assertTrue(default_storage.size(storage_name) > 0)
+
+
+@override_settings(
+    ALLOW_IMAGE_PATHS=True,
+    MEDIA_ROOT=os.path.join(TOP_DIR, 'apps', 'issuer', 'testfiles')
+)
+class TestImagePathValidation(BadgrTestCase):
+    
+    class TestSerializer(serializers.Serializer):
+        the_image = ValidImageField(source="image_field")
+
+    def _get_test_path(self, *args):
+        return os.path.join('file://', *args)
+
+    def _get_test_data(self, *args):
+        return {
+            'the_image': self._get_test_path(*args)
+        }
+
+    def test_image_path_validation(self):
+        guinea = self.TestSerializer(data=self._get_test_data('guinea_pig_testing_badge.png'))
+        nested_guinea = self.TestSerializer(data=self._get_test_data('test_nested_path', 'test_badgeclass.svg'))
+        non_existant_guinea = self.TestSerializer(data=self._get_test_data('non_existant_image.png'))
+        suspicious_guinea = self.TestSerializer(data=self._get_test_data('..', 'apps', 'top_secret.json'))
+
+        self.assertEqual(guinea.is_valid(), True)
+        self.assertEqual(nested_guinea.is_valid(), True)
+        self.assertEqual(non_existant_guinea.is_valid(), False)
+        self.assertEqual(suspicious_guinea.is_valid(), False)
+
+        does_not_exist_error = non_existant_guinea.errors.get('the_image')
+        self.assertEqual(len(does_not_exist_error), 1)
+        self.assertEqual(str(does_not_exist_error[0]), 'File does not exist')
+
+        suspicious_error = suspicious_guinea.errors.get('the_image')
+        self.assertEqual(len(suspicious_error), 1)
+        self.assertEqual(str(suspicious_error[0]), 'Path points to file outside media context')

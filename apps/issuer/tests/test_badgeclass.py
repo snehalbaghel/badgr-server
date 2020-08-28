@@ -3,13 +3,16 @@
 
 import base64
 import json
+import os
 from urllib.parse import quote_plus
 
 from django.core.files.images import get_image_dimensions
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from issuer.models import BadgeClass, IssuerStaff
+from mainsite import TOP_DIR
 from mainsite.tests import BadgrTestCase, SetupIssuerHelper
 from mainsite.utils import OriginSetting
 
@@ -1162,6 +1165,20 @@ class BadgeClassTests(SetupIssuerHelper, BadgrTestCase):
 
         response = self.client.get('/public/assertions/{}.json?expand=badge&expand=badge.issuer'.format(assertion_slug))
         self.assertEqual(response.data['badge']['issuer']['name'], 'Issuer 1 updated')
+
+    @override_settings(
+        ALLOW_IMAGE_PATHS=True,
+        MEDIA_ROOT=os.path.join(TOP_DIR, 'apps', 'issuer', 'testfiles')
+    )
+    def test_can_create_badgeclass_with_image_path(self):
+        image_path = 'file://guinea_pig_testing_badge.png'
+        nested_image_path = 'file://test_nested_path/test_badgeclass.svg'
+
+        badgeclass = self._create_badgeclass_with_v2(image=image_path)
+        nested_image_badgeclass = self._create_badgeclass_with_v2(image=nested_image_path)
+
+        self.assertEqual(badgeclass.get('image'), 'http://testserver/media/guinea_pig_testing_badge.png')
+        self.assertEqual(nested_image_badgeclass.get('image'), 'http://testserver/media/test_nested_path/test_badgeclass.svg')
 
 
 class BadgeClassesChangedApplicationTests(SetupIssuerHelper, BadgrTestCase):

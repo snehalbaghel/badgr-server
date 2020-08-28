@@ -45,7 +45,9 @@ Set or adjust these values in your `settings_local.dev.py` and/or `settings_loca
   - Allows you to turn off signup through the API by setting to `False` if you would like to use Badgr for only single-account use or to manually create all users in `/staff`. The default is `True` (signup API is enabled). UX is not well-supported in the `/staff` interface.
 * `DEFAULT_FILE_STORAGE` and `MEDIA_URL`:
   - Django supports various backends for storing media, as applicable for your deployment strategy. See Django docs on the [file storage API](https://docs.djangoproject.com/en/1.11/ref/files/storage/)
- 
+* `ALLOW_IMAGE_PATHS`:
+  - Allows you to send path to an existing image in `image` fields of issuers and badgeclasses. For example `file://uploads/issuer/xyz.png` will point to `MEDIA_ROOT/uploads/issuer/xyz.png`
+  - **NOTE**: Images (svg) set using path are not scrubbed so it becomes the reponsibility of the user to ensure the files on the server are safe.
 ### Running the Django Server in Development
 
 For development, it is usually best to run the project with the builtin django development server. The 

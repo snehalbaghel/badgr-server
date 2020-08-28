@@ -18,6 +18,7 @@ from oauth2_provider.models import Application
 
 from badgeuser.models import CachedEmailAddress, UserRecipientIdentifier
 from issuer.models import Issuer, BadgeClass, IssuerStaff
+from mainsite import TOP_DIR
 from mainsite.models import ApplicationInfo, AccessTokenProxy, BadgrApp
 from mainsite.tests import SetupOAuth2ApplicationHelper
 from mainsite.tests.base import BadgrTestCase, SetupIssuerHelper
@@ -602,6 +603,30 @@ class IssuerTests(SetupOAuth2ApplicationHelper, SetupIssuerHelper, BadgrTestCase
             'role': 'staff'
         })
         self.assertEqual(response.status_code, 404)
+
+    @override_settings(
+        ALLOW_IMAGE_PATHS=True,
+        MEDIA_ROOT=os.path.join(TOP_DIR, 'apps', 'issuer', 'testfiles')
+    )
+    def test_can_create_update_issuer_with_image_path(self):
+        test_user = self.setup_user(authenticate=True)
+        issuer_email = CachedEmailAddress.objects.create(
+            user=test_user, email=self.example_issuer_props['email'], verified=True)
+
+        issuer_payload = self.example_issuer_props;
+        issuer_payload['image'] = 'file://test_nested_path/test_badgeclass.svg'
+
+        response = self.client.post('/v2/issuers', issuer_payload)
+        self.assertEqual(response.status_code, 201)
+        response_data = response.data['result'][0]
+        self.assertEqual(response_data.get('image'), 'http://testserver/media/test_nested_path/test_badgeclass.svg')
+        entityId = response_data.get('entityId')
+        
+        issuer_payload['image'] = 'file://test_badgeclass.svg'
+        update_response = self.client.put('/v2/issuers/{}'.format(entityId), issuer_payload)
+        self.assertEqual(response.status_code, 200)
+        update_response_data = update_response.data['result'][0]
+        self.assertEqual(update_response_data.get('image'), 'http://testserver/media/test_badgeclass.svg')
 
 
 class IssuersChangedApplicationTests(SetupIssuerHelper, BadgrTestCase):
