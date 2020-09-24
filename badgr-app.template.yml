@@ -1,0 +1,442 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: badgr
+objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: db
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: "${VOLUME_CAPACITY}"
+- apiVersion: v1
+  data:
+    database-name: YmFkZ3I=
+    database-password: cGFzc3dvcmQ=
+    database-root-password: cGFzc3dvcmQ=
+    database-user: c25laGFs
+  kind: Secret
+  metadata:
+    name: db
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    failedBuildsHistoryLimit: 5
+    output:
+      to:
+        kind: ImageStreamTag
+        name: 'api:latest'
+    runPolicy: Serial
+    source:
+      git:
+        ref: develop
+        uri: 'https://github.com/snehalbaghel/badgr-server.git'
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: 'django-mysql-s2i:latest'
+      type: Source
+    successfulBuildsHistoryLimit: 5
+    triggers:
+      - github:
+          secret: 1iBl87vhirLCtB9EyGKR
+        type: GitHub
+      - generic:
+          secret: 30hKzPIaA_WqFTF_iAhf
+        type: Generic
+      - type: ConfigChange
+      - imageChange:
+          lastTriggeredImageID: >-
+            snehalbaghel/django-mysql-s2i@sha256:bcbd16466f7989910384c3f9267ec3e3dc602056993679dd2e262b4d499be05c
+        type: ImageChange
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ui
+    name: ui
+  spec:
+    failedBuildsHistoryLimit: 5
+    output:
+      to:
+        kind: ImageStreamTag
+        name: 'ui:latest'
+    runPolicy: Serial
+    source:
+      git:
+        ref: docker
+        uri: 'https://github.com/snehalbaghel/badgr-ui.git'
+      type: Git
+    strategy:
+      dockerStrategy:
+      type: Docker
+    successfulBuildsHistoryLimit: 5
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    lookupPolicy:
+      local: false
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: ui
+    name: ui
+  spec:
+    lookupPolicy:
+      local: false
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: api
+    name: django-mysql-s2i
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - from:
+          kind: DockerImage
+          name: snehalbaghel/django-mysql-s2i
+        importPolicy: {}
+        name: latest
+        referencePolicy:
+          type: Source
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: memcached
+    name: memcached
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - from:
+          kind: DockerImage
+          name: bitnami/memcached
+        importPolicy: {}
+        name: latest
+        referencePolicy:
+          type: Source
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: api
+      deploymentconfig: api
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          app: api
+          deploymentconfig: api
+      spec:
+        containers:
+          - image:
+            imagePullPolicy: Always
+            name: api
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+      - type: ConfigChange
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - api
+          from:
+            kind: ImageStreamTag
+            name: 'api:latest'
+        type: ImageChange
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: mysql-persistent
+      template: mysql-persistent-template
+    name: db
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      name: db
+    strategy:
+      activeDeadlineSeconds: 21600
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          name: db
+      spec:
+        containers:
+          - env:
+              - name: MYSQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    key: database-user
+                    name: db
+              - name: MYSQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    key: database-password
+                    name: db
+              - name: MYSQL_ROOT_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    key: database-root-password
+                    name: db
+              - name: MYSQL_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    key: database-name
+                    name: db
+            image: 
+            # centos/mysql-56-centos7:latest
+              # 172.30.1.1:5000/openshift/mysql@sha256:ad629a897185728349b33073300bb657303a0df14067bab323d72416e31f4f0f
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 3
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              successThreshold: 1
+              tcpSocket:
+                port: 3306
+              timeoutSeconds: 1
+            name: mysql
+            ports:
+              - containerPort: 3306
+                protocol: TCP
+            readinessProbe:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-i'
+                  - '-c'
+                  - >-
+                    MYSQL_PWD="$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u $MYSQL_USER
+                    -D $MYSQL_DATABASE -e 'SELECT 1'
+              failureThreshold: 3
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 1
+            resources:
+              limits:
+                memory: 512Mi
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+              - mountPath: /var/lib/mysql/data
+                name: db-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+          - name: db-data
+            persistentVolumeClaim:
+              claimName: db
+    test: false
+    triggers:
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - mysql
+          from:
+            kind: ImageStreamTag
+            name: 'mysql:5.6'
+            namespace: openshift
+          # lastTriggeredImage: >-
+            # 172.30.1.1:5000/openshift/mysql@sha256:ad629a897185728349b33073300bb657303a0df14067bab323d72416e31f4f0f
+        type: ImageChange
+      - type: ConfigChange
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: memcached
+    name: memcached
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: memcached
+      deploymentconfig: memcached
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: memcached
+          deploymentconfig: memcached
+      spec:
+        containers:
+          - image: 
+          # >-
+              # bitnami/memcached@sha256:297886bf3b67f57365dd3a901dc3565d9440ce9d3c7bef6f75d653b26c0ce725
+            imagePullPolicy: Always
+            name: memcached
+            ports:
+              - containerPort: 11211
+                protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+      - type: ConfigChange
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - memcached
+          from:
+            kind: ImageStreamTag
+            name: 'memcached:latest'
+            namespace: badgr
+          # lastTriggeredImage: >-
+            # bitnami/memcached@sha256:297886bf3b67f57365dd3a901dc3565d9440ce9d3c7bef6f75d653b26c0ce725
+        type: ImageChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    creationTimestamp: '2020-07-30T09:31:07Z'
+    labels:
+      app: api
+    name: api
+  spec:
+    ports:
+      - name: 8080-tcp
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+    selector:
+      app: api
+      deploymentconfig: api
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: memcached
+    name: memcached
+  spec:
+    ports:
+      - name: 11211-tcp
+        port: 11211
+        protocol: TCP
+        targetPort: 11211
+    selector:
+      app: memcached
+      deploymentconfig: memcached
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      template.openshift.io/expose-uri: 'mysql://{.spec.clusterIP}:{.spec.ports[?(.name=="mysql")].port}'
+    labels:
+      app: mysql-persistent
+      template: mysql-persistent-template
+    name: db
+  spec:
+    ports:
+      - name: mysql
+        port: 3306
+        protocol: TCP
+        targetPort: 3306
+    selector:
+      name: db
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    host: 
+    port:
+      targetPort: 8080-tcp
+    to:
+      kind: Service
+      name: api
+      weight: 100
+    wildcardPolicy: None
+  status:
+    ingress:
+      - conditions:
+          - lastTransitionTime: '2020-07-30T09:36:22Z'
+            status: 'True'
+            type: Admitted
+        host: 
+        routerName: router
+        wildcardPolicy: None
+parameters:
+- description: Volume space available for data, e.g. 512Mi, 2Gi.
+  displayName: Volume Capacity
+  name: VOLUME_CAPACITY
+  required: true
+  value: 1Gi
