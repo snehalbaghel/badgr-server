@@ -1,5 +1,3 @@
-
-
 from django.contrib.admin import ModelAdmin, StackedInline, TabularInline
 from django.urls import reverse
 from django.http import HttpResponseRedirect
@@ -7,11 +5,12 @@ from django.http import HttpResponseRedirect
 from django_object_actions import DjangoObjectActions
 from django.utils.safestring import mark_safe
 
-
 from mainsite.admin import badgr_admin
+from mainsite.mixins import ResizeUploadedImage
 
 from .models import Issuer, BadgeClass, BadgeInstance, BadgeInstanceEvidence, BadgeClassAlignment, BadgeClassTag, \
     BadgeClassExtension, IssuerExtension, BadgeInstanceExtension
+from .tasks import resend_notifications
 
 
 class IssuerStaffInline(TabularInline):
@@ -49,6 +48,12 @@ class IssuerAdmin(DjangoObjectActions, ModelAdmin):
         IssuerExtensionInline
     ]
     change_actions = ['redirect_badgeclasses']
+
+    def save_model(self, request, obj, form, change):
+        force_resize = False
+        if 'image' in form.changed_data:
+            force_resize = True
+        obj.save(force_resize=force_resize)
 
     def img(self, obj):
         try:
@@ -114,6 +119,12 @@ class BadgeClassAdmin(DjangoObjectActions, ModelAdmin):
         BadgeClassExtensionInline,
     ]
     change_actions = ['redirect_issuer', 'redirect_instances', 'redirect_pathwaybadges']
+
+    def save_model(self, request, obj, form, change):
+        force_resize = False
+        if 'image' in form.changed_data:
+            force_resize = True
+        obj.save(force_resize=force_resize)
 
     def badge_image(self, obj):
         return mark_safe('<img src="{}" width="32"/>'.format(obj.image.url)) if obj.image else ''
@@ -185,7 +196,7 @@ class BadgeInstanceAdmin(DjangoObjectActions, ModelAdmin):
             'fields': ('old_json',)
         }),
     )
-    actions = ['rebake']
+    actions = ['rebake', 'resend_notifications']
     change_actions = ['redirect_issuer', 'redirect_badgeclass']
     inlines = [
         BadgeEvidenceInline,
@@ -221,6 +232,11 @@ class BadgeInstanceAdmin(DjangoObjectActions, ModelAdmin):
         )
     redirect_issuer.label = "Issuer"
     redirect_issuer.short_description = "See this Issuer"
+
+    def resend_notifications(self, request, queryset):
+        ids_dict = queryset.only('entity_id').values()
+        ids = [i['entity_id'] for i in ids_dict]
+        resend_notifications.delay(ids)
 
     def save_model(self, request, obj, form, change):
         obj.rebake(save=False)

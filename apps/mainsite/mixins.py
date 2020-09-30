@@ -6,16 +6,50 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from django.core.files import File
 from django.core.files.storage import default_storage
+from django.db import models
 from resizeimage.resizeimage import resize_contain
 
 from defusedxml.cElementTree import parse as safe_parse
 
-from mainsite.utils import verify_svg, scrubSvgElementTree, image_exists
+from mainsite.utils import verify_svg, scrubSvgElementTree, image_exists, hash_for_image
 
 
 def _decompression_bomb_check(image, max_pixels=Image.MAX_IMAGE_PIXELS):
     pixels = image.size[0] * image.size[1]
     return pixels > max_pixels
+
+
+class HashUploadedImage(models.Model):
+    # Adds new django field
+    image_hash = models.CharField(max_length=72, blank=True, default='')
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        original_hash = self.image_hash
+        pending_hash = self.hash_for_image_if_open()
+        changed = pending_hash is not None and pending_hash != original_hash
+        if changed:
+            self.image_hash = pending_hash
+        result = super(HashUploadedImage, self).save(*args, **kwargs)
+
+        if changed and self.pk:
+            self.schedule_image_update_task()
+
+        return result
+
+    def hash_for_image_if_open(self):
+        if self.image and not self.image.closed:
+            return hash_for_image(self.image)
+        return None
+
+    def schedule_image_update_task(self):
+        """
+        Override this to perform logic if the image hash has updated during a save().
+        :return: None
+        """
+        pass
 
 
 class ResizeUploadedImage(object):
