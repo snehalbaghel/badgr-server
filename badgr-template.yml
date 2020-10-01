@@ -1,0 +1,612 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: badgr
+objects:
+- apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: db
+  spec:
+    accessModes:
+    - ReadWriteOnce
+    resources:
+      requests:
+        storage: "${VOLUME_CAPACITY}"
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: badgr-ui-config
+  data:
+    config.json: "{\n    \"production\": true,\n    \"config\": {\n        \"api\": {\n            \"baseUrl\": \"\"\n        },\n        \"help\": {\n            \"email\": \"\",\n            \"alternateLandingUrl\": \"\"\n        },\n        \"features\": {\n            \"alternateLandingRedirect\": true\n        },\n        \"theme\": {\n            \"serviceName\": \"Fedora Badges\",\n            \"welcomeMessage\": \"### Welcome\",\n            \"showPoweredByBadgr\": true,\n            \"showApiDocsLink\": true,\n            \"termsOfServiceLink\": null,\n\t\t\"termsHelpLink\": null,\n\t\t\"privacyPolicyLink\": null,\n        \"providedBy\": null,\n        \"logoImg\": {\n            \"small\": \"https://badges.fedoraproject.org/static/img/fedora_badges_small.png\",\n            \"desktop\": \"https://badges.fedoraproject.org/static/img/fedora_badges_small.png\"\n        },\n        \"loadingImg\": {\n\t\t\t\"imageUrl\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAxCAMAAACrgNoQAAAAilBMVEXx8fH////9/f3z8/P19fX39/f5+fn19PTR0NHt7e2np6f7/Pvo6ejY2NjLy8vv7++urq7l5eXg4ODT09O3t7fExMTAwMC8vLzr6+u1tbXi4uKysrLe3t7W1tbGxsaKiorIyMirq6vc3Nzb29vV1dXPz8/d3d3Nzc29vb25ubmfn5+RkZHa2tp/f3+C+l03AAADIklEQVRIx41WiZKkIAwNkIB437atrX3Oufv/v7cIVG3RM1NjbCEBHknIKxtgVjjntgnV0HZiAR4UND+p4DQBijECSBgHQMYQgDMJIBkXgHaKu5VgW/xYL5ic18+ap59rn9C4fmiefa4Nh4+1pKRbPytO21owb6NBoALTIAAgCgCFKlC3KeouG4Cz+a+CXUJrxrgBlOek2AeYawsALWCfoD8lBTulkGzLQR+ePQj7WMWKV+jU2pAukYRdIqPYAuIAELh49jBYwGNG2CnSJS2+d/BVFHPU8OavMDy6wi03fFr5W9IPnzS6H2rLHvMqYV5Q9ASYGjuiDmeFj4qqYWgPAq83xOao8N52D/QbplVADRqPesLicqSXUtFrTtRnSN0fWdYeoUJqYDX0L0nWJ1qOxySKiLob0vlkLAcQWlkPaao8U4ZS4r0jTcOLASBugC7+ePVJUDOFlabmlURVSqkuWjY5528z0nKsB/kDNSjKZUHLGF0iBD2d8ndRyCXjkz93+tNZwMmHCMLyFuuoQgBVnLKtcgettI8ZgD9RQ1gNSYHrTRNwULhTSsCLc6QISGwW2l6QsiZY3zakPiO38q63iA7t2BcCMG1HU0Ch38dBq2+pgWOKAKLMoGlRpGVVVBpwaiCb0AMuFtCeyAEGA8DrwEGOVdI1SYEK65ZD0tboyHMwAMao8CG+p6KgZivc25W/1yKfMlN4Y7qgv1Jj0FJhNSVE5UGeF86zJUlLibJMrQdzxDakukKfQ3StAPt+bnOEoszr9kHYDfOw+ByaMqi0OkbRrADv5xqNBdGSbdtk5xl/oAYSbVMkPRMkgTf9/EtuAXOFsE8E3/2pDLhExdetwt4LXs//CyeCx9vBcJj0bxIc61tG+0ISGiw1pLOCx3XhcECNXR5UmtqQ7jV+/2H934eVbuN9f4pFUvYWQGsqLA1QSgUgvSpAyY0Vfsro4o5b0gaBeMobUFWep0pH+U2Iax5plb7mRwWn/G54mUfLLbE3AXfp6OI3yer4kjIc45yxKJ4UO5TxlSV93Cdsjqf4D+OeS5ztEb/u6b7EXePtUHX7/gP37yxIGVsXUQAAAABJRU5ErkJggg==\",\n\t\t\t\"height\": 48\n        },\n\t\t\"useColorNavbar\": true\n        }\n    }\n}"
+- apiVersion: v1
+  stringData:
+    database-name: "${DB_NAME}"
+    database-password: "${DB_PASSWORD}"
+    database-root-password: "${DB_ROOT_PASSWORD}"
+    database-user: "${DB_USER}"
+  kind: Secret
+  metadata:
+    name: db
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    failedBuildsHistoryLimit: 5
+    output:
+      to:
+        kind: ImageStreamTag
+        name: 'api:latest'
+    runPolicy: Serial
+    source:
+      git:
+        ref: develop
+        uri: 'https://github.com/snehalbaghel/badgr-server.git'
+      type: Git
+    strategy:
+      sourceStrategy:
+        from:
+          kind: ImageStreamTag
+          name: 'django-mysql-s2i:latest'
+        env:
+          - name: DB_NAME
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: database-name
+          - name: DB_USER
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: database-user
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: database-password
+      type: Source
+    successfulBuildsHistoryLimit: 5
+    triggers:
+      - github:
+          secret: 1iBl87vhirLCtB9EyGKR
+        type: GitHub
+      - generic:
+          secret: 30hKzPIaA_WqFTF_iAhf
+        type: Generic
+      - type: ConfigChange
+      - imageChange:
+        type: ImageChange
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ui
+    name: ui
+  spec:
+    failedBuildsHistoryLimit: 5
+    output:
+      to:
+        kind: ImageStreamTag
+        name: 'ui:latest'
+    runPolicy: Serial
+    source:
+      git:
+        ref: docker
+        uri: 'https://github.com/snehalbaghel/badgr-ui.git'
+      configMaps:
+        - configMap:
+            name: badgr-ui-config
+          destinationDir: ".docker"
+      type: Git
+    strategy:
+      dockerStrategy:
+        env:
+        - name: BADGR_UI_CONFIG_FILE
+          value: .docker/config.json
+      type: Docker
+    successfulBuildsHistoryLimit: 5
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    lookupPolicy:
+      local: false
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: ui
+    name: ui
+  spec:
+    lookupPolicy:
+      local: false
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: api
+    name: django-mysql-s2i
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - from:
+          kind: DockerImage
+          name: snehalbaghel/django-mysql-s2i
+        importPolicy: {}
+        name: latest
+        referencePolicy:
+          type: Source
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    labels:
+      app: memcached
+    name: memcached
+  spec:
+    lookupPolicy:
+      local: false
+    tags:
+      - from:
+          kind: DockerImage
+          name: bitnami/memcached
+        importPolicy: {}
+        name: latest
+        referencePolicy:
+          type: Source
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: api
+      deploymentconfig: api
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          app: api
+          deploymentconfig: api
+      spec:
+        containers:
+          - image:
+            imagePullPolicy: Always
+            name: api
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            env:
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: db
+                  key: database-name
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db
+                  key: database-user
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db
+                  key: database-password
+            - name: FROM_EMAIL
+              value: "${FROM_EMAIL}"
+            - name: EMAIL_HOST
+              value: "${EMAIL_HOST}"
+            - name: EMAIL_PORT
+              value: "${EMAIL_PORT}"
+            - name: EMAIL_HOST_USER
+              value: "${EMAIL_HOST_USER}"
+            - name: EMAIL_HOST_PASSWORD
+              value: "${EMAIL_HOST_PASSWORD}"
+            - name: HTTP_ORIGIN
+              value: "${HTTP_ORIGIN}"
+            - name: ALLOWED_HOSTS
+              value: "${ALLOWED_HOSTS}"
+            - name: SECRET_KEY
+              value: "${SECRET_KEY}"
+            - name: UNSUBSCRIBE_KEY
+              value: "${UNSUBSCRIBE_KEY}"
+            - name: AUTHCODE_SECRET_KEY
+              value: "${AUTHCODE_SECRET_KEY}"
+            - name: ECHO_TO_SETTINGS
+              value: "${ECHO_TO_SETTINGS}"
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+      - type: ConfigChange
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - api
+          from:
+            kind: ImageStreamTag
+            name: 'api:latest'
+        type: ImageChange
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: ui
+    name: ui
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: ui
+      deploymentconfig: ui
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        labels:
+          app: ui
+          deploymentconfig: ui
+      spec:
+        containers:
+          - image:
+            imagePullPolicy: Always
+            name: ui
+            ports:
+              - containerPort: 8080
+                protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+      - type: ConfigChange
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - ui
+          from:
+            kind: ImageStreamTag
+            name: 'ui:latest'
+        type: ImageChange   
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: mysql-persistent
+      template: mysql-persistent-template
+    name: db
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      name: db
+    strategy:
+      activeDeadlineSeconds: 21600
+      recreateParams:
+        timeoutSeconds: 600
+      resources: {}
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: db
+      spec:
+        containers:
+          - env:
+              - name: MYSQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    key: database-user
+                    name: db
+              - name: MYSQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    key: database-password
+                    name: db
+              - name: MYSQL_ROOT_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    key: database-root-password
+                    name: db
+              - name: MYSQL_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    key: database-name
+                    name: db
+            image: centos/mysql-56-centos7:latest
+            imagePullPolicy: IfNotPresent
+            livenessProbe:
+              failureThreshold: 3
+              initialDelaySeconds: 30
+              periodSeconds: 10
+              successThreshold: 1
+              tcpSocket:
+                port: 3306
+              timeoutSeconds: 1
+            name: mysql
+            ports:
+              - containerPort: 3306
+                protocol: TCP
+            readinessProbe:
+              exec:
+                command:
+                  - /bin/sh
+                  - '-i'
+                  - '-c'
+                  - >-
+                    MYSQL_PWD="$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u $MYSQL_USER
+                    -D $MYSQL_DATABASE -e 'SELECT 1'
+              failureThreshold: 3
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              successThreshold: 1
+              timeoutSeconds: 1
+            resources:
+              limits:
+                memory: 512Mi
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+            volumeMounts:
+              - mountPath: /var/lib/mysql/data
+                name: db-data
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+          - name: db-data
+            persistentVolumeClaim:
+              claimName: db
+    test: false
+    triggers:
+      - type: ConfigChange
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    labels:
+      app: memcached
+    name: memcached
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: memcached
+      deploymentconfig: memcached
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: memcached
+          deploymentconfig: memcached
+      spec:
+        containers:
+          - image: bitnami/memcached
+            imagePullPolicy: Always
+            name: memcached
+            ports:
+              - containerPort: 11211
+                protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+      - type: ConfigChange
+      - imageChangeParams:
+          automatic: true
+          containerNames:
+            - memcached
+          from:
+            kind: ImageStreamTag
+            name: 'memcached:latest'
+        type: ImageChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    ports:
+      - name: 8080-tcp
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+    selector:
+      app: api
+      deploymentconfig: api
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: ui
+    name: ui
+  spec:
+    ports:
+      - name: 80-tcp
+        port: 80
+        protocol: TCP
+        targetPort: 8080
+    selector:
+      app: ui
+      deploymentconfig: ui
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: memcached
+    name: memcached
+  spec:
+    ports:
+      - name: 11211-tcp
+        port: 11211
+        protocol: TCP
+        targetPort: 11211
+    selector:
+      app: memcached
+      deploymentconfig: memcached
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      template.openshift.io/expose-uri: 'mysql://{.spec.clusterIP}:{.spec.ports[?(.name=="mysql")].port}'
+    labels:
+      app: mysql-persistent
+      template: mysql-persistent-template
+    name: db
+  spec:
+    ports:
+      - name: mysql
+        port: 3306
+        protocol: TCP
+        targetPort: 3306
+    selector:
+      name: db
+    sessionAffinity: None
+    type: ClusterIP
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    labels:
+      app: api
+    name: api
+  spec:
+    host: 
+    port:
+      targetPort: 8080-tcp
+    to:
+      kind: Service
+      name: api
+      weight: 100
+    wildcardPolicy: None
+parameters:
+- description: Volume space available for database, e.g. 512Mi, 2Gi.
+  displayName: Volume Capacity
+  name: VOLUME_CAPACITY
+  value: 1Gi
+  required: true
+- description: Name of the MySQL database
+  displayName: Database Name
+  name: DB_NAME
+  value: badgr
+  required: true
+- description: Password for the MySQL root user.
+  displayName: Root Database Password
+  name: DB_ROOT_PASSWORD
+  generate: expression
+  from: "[a-zA-Z0-9]{16}"
+  required: true
+- description: Username for MySQL user that will be used for accessing the database.
+  displayName: Databse Connection Username
+  from: "user[az-A-Z0-9]{3}"
+  generate: expression
+  name: DB_USER
+  required: true
+- description: Password for the MySQL connection user.
+  displayName: Database Password
+  name: DB_PASSWORD
+  generate: expression
+  from: "[a-zA-Z0-9]{16}"
+  required: true
+- description: Badgr server's http origin
+  displayName: HTTP origin
+  name: HTTP_ORIGIN
+  value: http://api-badgr.192.168.42.190.nip.io/
+  required: true
+- description: Django's ALLOWED_HOSTS setting (Space sepereated list)
+  displayName: Allowed Hosts
+  name: ALLOWED_HOSTS
+  value: '*'
+- description: Email to send badgr mails from
+  displayName: From Email
+  name: FROM_EMAIL
+  value: noreply@example.com
+- description: Host of the email provider (SMTP)
+  displayName: Email Host
+  name: EMAIL_HOST
+- description: Port of the email provider (SMTP)
+  displayName: Email Port
+  name: EMAIL_PORT
+- description: Username to use for the SMTP server defined in EMAIL_HOST.
+  displayName: Email Host User
+  name: EMAIL_HOST_USER
+- description: Password to use for the SMTP server defined in EMAIL_HOST.
+  displayName: Email Host Password
+  name: EMAIL_HOST_PASSWORD
+- description: Unsubscribe secret key (Generate using - python -c "import base64; import os; print(base64.b64encode(os.urandom(30)).decode('utf-8'))")
+  displayName: Unsubscribe secret key
+  name: SECRET_KEY
+- description: Unsubscribe key (Generate using - python -c "import base64; import os; print(base64.b64encode(os.urandom(30)).decode('utf-8'))")
+  displayName: Unsubscribe Key
+  name: UNSUBSCRIBE_KEY
+- description: Password to use for the SMTP server defined in EMAIL_HOST.
+  displayName: Email Host Password
+  name: EMAIL_HOST_PASSWORD
+- description: Authcode Secret (Generate using - python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode()) )
+  displayName: Authcode Secret Key
+  name: AUTHCODE_SECRET_KEY
+- description: Other settings that you want to echo into django's settings
+  displayName: Other settings (Eg. 'EMAIL_USE_TLS=True;EMAIL_USE_SSL=True;')
+  name: ECHO_TO_SETTINGS
